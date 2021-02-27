@@ -572,11 +572,19 @@ bool AudioControlSGTL5000::enable(const unsigned extMCLK, const uint32_t pllFreq
 	
 	if (extMCLK > 0) { 
 		//SGTL is I2S Master
+#ifdef USB_AUDIO_48KHZ
+		write(CHIP_CLK_CTRL, 0x0008 | 0x03);
+#else
 		write(CHIP_CLK_CTRL, 0x0004 | 0x03);  // 44.1 kHz, 256*Fs, use PLL
+#endif
 		write(CHIP_I2S_CTRL, 0x0030 | (1<<7)); // SCLK=64*Fs, 16bit, I2S format
 	} else {
 		//SGTL is I2S Slave
+#ifdef USB_AUDIO_48KHZ
+		write(CHIP_CLK_CTRL, 0x0008);
+#else
 		write(CHIP_CLK_CTRL, 0x0004);  // 44.1 kHz, 256*Fs
+#endif
 		write(CHIP_I2S_CTRL, 0x0030); // SCLK=64*Fs, 16bit, I2S format
 	}
 
