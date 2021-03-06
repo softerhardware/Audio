@@ -529,6 +529,7 @@ span.mainfunction {color: #993300; font-weight: bolder}
 		{"type":"AudioEffectWaveshaper","data":{"shortName":"waveshape","inputs":1,"outputs":1,"category":"effect-function","color":"#E6E0F8","icon":"arrow-in.png"}},
 		{"type":"AudioEffectGranular","data":{"shortName":"granular","inputs":1,"outputs":1,"category":"effect-function","color":"#E6E0F8","icon":"arrow-in.png"}},
 		{"type":"AudioEffectDigitalCombine","data":{"shortName":"combine","inputs":2,"outputs":1,"category":"effect-function","color":"#E6E0F8","icon":"arrow-in.png"}},
+		{"type":"AudioEffectWaveFolder","data":{"defaults":{"name":{"value":"new"}},"shortName":"wavefolder","inputs":2,"outputs":1,"category":"effect-function","color":"#E6E0F8","icon":"arrow-in.png"}},
 		{"type":"AudioFilterBiquad","data":{"defaults":{"name":{"value":"new"}},"shortName":"biquad","inputs":1,"outputs":1,"category":"filter-function","color":"#E6E0F8","icon":"arrow-in.png"}},
 		{"type":"AudioFilterFIR","data":{"defaults":{"name":{"value":"new"}},"shortName":"fir","inputs":1,"outputs":1,"category":"filter-function","color":"#E6E0F8","icon":"arrow-in.png"}},
 		{"type":"AudioFilterStateVariable","data":{"defaults":{"name":{"value":"new"}},"shortName":"filter","inputs":2,"outputs":3,"category":"filter-function","color":"#E6E0F8","icon":"arrow-in.png"}},
@@ -1210,8 +1211,11 @@ Returns the actual achieved attenuation of the anti-aliasing filter. If the inpu
 	<p>This object has no functions to call from the Arduino sketch.  It
 		simply streams data from the TDM hardware to its 16 output ports.</p>
 	<h3>Hardware</h3>
-	<p>TDM has been tested with this <a href="https://oshpark.com/shared_projects/2Yj6rFaW">
-		CS42448 Circuit Board</a>.  It may also work with
+	<p>TDM has been tested with this
+		<a href="https://oshpark.com/shared_projects/2Yj6rFaW">
+		CS42448 Board for Teensy 3.x</a> and this
+		<a href="https://oshpark.com/shared_projects/gVFy0fWQ">
+		CS42448 Board for Teensy 4.x</a>.  It may also work with
 		<a href="https://forum.pjrc.com/threads/42894">Invensense ICS-52000 microphones</a>.
 		</p>
 	<table class=doc align=center cellpadding=3>
@@ -2309,7 +2313,11 @@ Returns the actual achieved attenuation of the anti-aliasing filter. If the inpu
 		simply streams data from its 16 input ports to the TDM hardware.</p>
 	<h3>Hardware</h3>
 	<p>TDM has been tested with this <a href="https://oshpark.com/shared_projects/2Yj6rFaW">
-		CS42448 Circuit Board</a>.
+		CS42448 Board for Teensy 3.x</a> and this
+		<a href="https://oshpark.com/shared_projects/gVFy0fWQ">
+		CS42448 Board for Teensy 4.x</a> and this
+		<a href="https://oshpark.com/shared_projects/O7iqdcLr">
+		ADAU1966A Board for Teensy 4.x</a>.
 		</p>
 	<table class=doc align=center cellpadding=3>
 		<tr class=top><th>T3.x<br>Pin</th><th>T4.x<br>Pin</th><th>Signal</th><th>Direction</th></tr>
@@ -3961,6 +3969,39 @@ double s_freq = .0625;</p>
 	</div>
 </script>
 
+<script type="text/x-red" data-help-name="AudioEffectWaveFolder">
+	<h3>Summary</h3>
+	<div class=tooltipinfo>
+	<p>Multiply two signals together and apply wavefolding, useful for modulatable distortion;
+           use one input as a depth control from LFO or DC signal.  Rather than saturating the signal
+           folds back on itself when overloaded - extra gain means the modulating signal starts to cause
+           folding of a full-scale waveform at about 6% modulation, allowing a maximum folding factor of 16.
+	</p>
+	<p align=center><img src="img/wavefolder.png"><br><small>70 Hz sine wave distorted with wave-folding.</small></p>
+	</div>
+	<h3>Audio Connections</h3>
+	<table class=doc align=center cellpadding=3>
+		<tr class=top><th>Port</th><th>Purpose</th></tr>
+		<tr class=odd><td align=center>In 0</td><td>Signal Input</td></tr>
+		<tr class=odd><td align=center>In 1</td><td>Modulation Input</td></tr>
+		<tr class=odd><td align=center>Out 0</td><td>Signal with Folding Applied</td></tr>
+	</table>
+	<h3>Functions</h3>
+	<p>There are no functions to call from the Arduino sketch.
+		This object simply combined the 2 signals and then wave-folds
+	</p>
+<h3>Examples</h3>
+	<p class=exam>File &gt; Examples &gt; Audio &gt; Effects &gt; WaveFolder</p>
+	<h3>Notes</h3>
+	<p>Assumes the AudioShield fitted.</p>
+</script>
+<script type="text/x-red" data-template-name="AudioEffectWaveFolder">
+	<div class="form-row">
+		<label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+		<input type="text" id="node-input-name" placeholder="Name">
+	</div>
+</script>
+
 <script type="text/x-red" data-help-name="AudioEffectRectifier">
 	<h3>Summary</h3>
 	<div class=tooltipinfo>
@@ -4638,12 +4679,27 @@ double s_freq = .0625;</p>
 		maximum resonance when the control signal is at its 1.0 maximum
 		amplitude, this setting must be at least 0.8.
 	</p>
+	<p class=func><span class=keyword>inputDrive</span>(level);</p>
+	<p class=desc>TODO: add info here...<br>
+		range is 0 to 4.0
+	</p>
+	<p class=func><span class=keyword>passbandGain</span>(gain);</p>
+	<p class=desc>TODO: add info here...<br>
+		range is 0 to 0.5
+	</p>
+	<p class=func><span class=keyword>interpolationMethod</span>(method);</p>
+	<p class=desc>TODO: add info here...<br>
+		<span class=literal>LADDER_FILTER_INTERPOLATION_FIR_POLY</span><br>
+		<span class=literal>LADDER_FILTER_INTERPOLATION_LINEAR</span><br>
+	</p>
+
 <h3>Examples</h3>
 	<p class=exam>File &gt; Examples &gt; Audio &gt; Synthesis &gt; LadderFilter
 	</p>
 	<h3>Notes</h3>
-	<p>
-		When controlled by a signal, the equation for the filter
+	<p>	Teensy 3.5 is the minimum hardware capable of running this filter.
+	</p>
+	<p>	When controlled by a signal, the equation for the filter
 		frequency is:
 	</p>
 	<p>
@@ -5616,7 +5672,9 @@ value  frequency
 	</p>
 	<h3>Hardware</h3>
 	<p>Tested with this <a href="https://oshpark.com/shared_projects/2Yj6rFaW">
-		CS42448 Circuit Board</a>.
+		CS42448 Board for Teensy 3.x</a> and this
+		<a href="https://oshpark.com/shared_projects/gVFy0fWQ">
+		CS42448 Board for Teensy 4.x</a>.
 	</p>
 	<p align=center><img src="img/tdm.jpg"></p>
 	</div>

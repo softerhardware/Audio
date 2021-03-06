@@ -24,6 +24,9 @@
 // Huovilainen New Moog (HNM) model as per CMJ jun 2006
 // Implemented as Teensy Audio Library compatible object
 // Richard van Hoesel, v. 1.03, Feb. 14 2021
+// v1.5 adds polyphase FIR or Linear interpolation
+// v1.4 FC extended to 18.7kHz, max res to 1.8, 4x oversampling,
+//      and a minor Q-tuning adjustment
 // v.1.03 adds oversampling, extended resonance,
 // and exposes parameters input_drive and passband_gain
 // v.1.02 now includes both cutoff and resonance "CV" modulation inputs
@@ -37,33 +40,51 @@
 
 #include "Arduino.h"
 #include "AudioStream.h"
+#include "arm_math.h"
+
+enum AudioFilterLadderInterpolation {
+	LADDER_FILTER_INTERPOLATION_LINEAR,
+	LADDER_FILTER_INTERPOLATION_FIR_POLY
+};
+
 
 class AudioFilterLadder: public AudioStream
 {
 public:
-	AudioFilterLadder() : AudioStream(3, inputQueueArray) {};
+	AudioFilterLadder() : AudioStream(3, inputQueueArray) { initpoly(); };
 	void frequency(float FC);
 	void resonance(float reson);
 	void octaveControl(float octaves);
-	void passband_gain(float passbandgain);
-	void input_drive(float drv);
+	void passbandGain(float passbandgain);
+	void inputDrive(float drv);
+	void interpolationMethod(AudioFilterLadderInterpolation im);
 	virtual void update(void);
 private:
+	static const int INTERPOLATION = 4;
+	static const int interpolation_taps = 36;
+	float interpolation_state[(AUDIO_BLOCK_SAMPLES-1) + interpolation_taps / INTERPOLATION];
+	arm_fir_interpolate_instance_f32 interpolation;
+	float decimation_state[(AUDIO_BLOCK_SAMPLES*INTERPOLATION-1) + interpolation_taps];
+	arm_fir_decimate_instance_f32 decimation;
+	static float interpolation_coeffs[interpolation_taps];
 	float LPF(float s, int i);
 	void compute_coeffs(float fc);
+	void initpoly();
 	bool resonating();
+	bool  polyCapable = false;
+	bool  polyOn = false;		// FIR is default after initpoly()
 	float alpha = 1.0;
 	float beta[4] = {0.0, 0.0, 0.0, 0.0};
 	float z0[4] = {0.0, 0.0, 0.0, 0.0};
 	float z1[4] = {0.0, 0.0, 0.0, 0.0};
-	float K = 2.8;
-	float Fbase = 800;
+	float K = 1.0f;
+	float Fbase = 1000;
 	float Qadjust = 1.0f;
 	float octaveScale = 1.0f/32768.0f;
-	float pbg = 0.0f;
-	float overdrive = 1.0f;
+	float pbg = 0.5f;
+	float overdrive = 0.5f;
 	float host_overdrive = 1.0f;
-	float lfkmod = 1.0;
+	float oldinput = 0;
 	audio_block_t *inputQueueArray[3];
 };
 
