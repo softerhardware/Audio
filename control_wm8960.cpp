@@ -82,6 +82,19 @@ bool AudioControlWM8960::enable(void)
     return true;
 }
 
+bool AudioControlWM8960::volume(float n) {
+    unsigned int i;
+    i = (unsigned int)(n*0x7f);
+    leftHeadphoneVolume(i);
+    rightHeadphoneVolume(i);
+}
+
+bool AudioControlWM8960::volume(int n) {
+    n = n & 0x7f;
+    leftHeadphoneVolume(n);
+    rightHeadphoneVolume(n);
+}
+
 
 // mask set bits are the bits in val which should be written
 bool AudioControlWM8960::write(uint16_t reg, uint16_t val, uint16_t mask)

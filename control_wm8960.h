@@ -30,10 +30,12 @@ class AudioControlWM8960 : public AudioControl
 public:
     bool enable(void);
     bool disable(void) { return false; }
-    bool volume(float n) { return false; } //{ return volumeInteger(n * 80.0f + 47.499f); }
     bool inputLevel(float n) { return false; } // range: 0.0f to 1.0f
     bool inputSelect(int n) { return false; }
     //bool volumeInteger(unsigned int n); // range: 0x2F to 0x7F
+
+    bool volume(float n);
+    bool volume(int n);
 
     bool leftInputVolume(unsigned int v);
     bool rightInputVolume(unsigned int v);
