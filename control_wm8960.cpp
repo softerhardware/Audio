@@ -84,15 +84,9 @@ bool AudioControlWM8960::enable(void)
 
 bool AudioControlWM8960::volume(float n) {
     unsigned int i;
-    i = (unsigned int)(n*0x7f);
+    i = 47 + (int) (80.0*n+0.5);
     leftHeadphoneVolume(i);
     rightHeadphoneVolume(i);
-}
-
-bool AudioControlWM8960::volume(int n) {
-    n = n & 0x7f;
-    leftHeadphoneVolume(n);
-    rightHeadphoneVolume(n);
 }
 
 
