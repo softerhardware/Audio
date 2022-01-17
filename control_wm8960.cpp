@@ -45,8 +45,8 @@ bool AudioControlWM8960::enable(void)
     // Enable VMID and VREF
     write(0x19, 0x1c0, 0b111000000);
 
-    // Enable DAC and Headphones
-    write(0x1a, 0x1e0, 0b111100000);
+    // Enable DAC, Headphones and Speakers
+    write(0x1a, 0b111111000, 0b111111000);
 
     // Enable mixer
     write(0x2f, 0x0c,0x0c);
@@ -54,15 +54,19 @@ bool AudioControlWM8960::enable(void)
     // Setup clocking
     write(0x04, 0x00, 0b111111111);
 
+
     // Unmute
     muteDAC(0);
 
     // 16-bit data and i2s interface
     write(0x07, 0x02, 0b000001111); // I2S, 16 bit, MCLK slave
 
-    leftHeadphoneVolume(0xff);
-
-    rightHeadphoneVolume(0xff);
+    // Mute headphone and speakers, but enable zero crossing changes only
+    write(0x02, 0b010000000, 0b011111111);
+    write(0x03, 0b110000000, 0b111111111);
+    // Speakers
+    write(0x28, 0b010000000, 0b011111111);
+    write(0x29, 0b110000000, 0b111111111);
 
     leftDACVolume(0xff);
 
@@ -70,11 +74,37 @@ bool AudioControlWM8960::enable(void)
 
     // Connect Left DAC to left output mixer
     write(0x22,0x100,0x100);
-    delay(5);
 
     // Connect Right DAC to right output mixer
     write(0x25,0x100,0x100);
 
+
+    // Enable headphone detect to disable speaker
+    // Enable HPSWEN and set HPSWPOL
+    write(0x18,0b001000000,0b001100000);
+    // Use JD02 as jack detect input
+    write(0x30,0b000001000,0b000001100);
+    // Enable slow clock for jack detect
+    write(0x17,0b000000001,0b000000011);
+
+
+    // Enable speaker outputs
+    write(0x31,0b011000000,0b011000000);
+
+
+    //// Configure input
+    //// Enable AINL and AINR, and ADCL ADCR, and MIC bias
+    //write(0x19,0b000111110,0b000111110);
+    //// Enable LMIC RMIC
+    //write(0x2f,0b000110000,0b000110000);
+    //// Enable only first inputs, connect to input mixer, enable boost of +29dB
+    //write(0x20,0b100111000,0b100111000);
+    //write(0x21,0b100111000,0b100111000);
+    //// Unmute and set zero crossing input level change
+    //write(0x00,0b101000000,0b111000000);
+    //write(0x01,0b101000000,0b111000000);
+    //// Enable ALC for both channels
+    //write(0x11,0b110000000,0b110000000);
 
     delay(100); // how long to power up?
 
@@ -85,8 +115,14 @@ bool AudioControlWM8960::enable(void)
 bool AudioControlWM8960::volume(float n) {
     unsigned int i;
     i = 47 + (int) (80.0*n+0.5);
-    leftHeadphoneVolume(i);
-    rightHeadphoneVolume(i);
+    // Do this at low level so that both left and right are updated at the same time
+    // Headphones
+    write(0x02, (i & 0b01111111), 0b001111111);
+    write(0x03, 0b100000000 | (i & 0b01111111), 0b101111111);
+    // Speakers
+    write(0x28, (i & 0b01111111), 0b001111111);
+    // Simplified to return status of only last write
+    return write(0x29, 0b100000000 | (i & 0b01111111), 0b101111111);
 }
 
 
@@ -168,13 +204,13 @@ bool AudioControlWM8960::rightHeadphoneZC(unsigned int v)
 // Write 1 to enable
 bool AudioControlWM8960::enableDAC6dBAttenuate(unsigned int v)
 {
-    return write(0x05, (v & 0xb01) << 7, 0b010000000);
+    return write(0x05, (v & 0b01) << 7, 0b010000000);
 }
 
 // Write 1 to mute
 bool AudioControlWM8960::muteDAC(unsigned int v)
 {
-    return write(0x05, (v & 0xb01) << 3, 0b000001000);
+    return write(0x05, (v & 0b01) << 3, 0b000001000);
 }
 
 // Write 1 to enable
