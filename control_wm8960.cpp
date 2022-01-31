@@ -22,44 +22,73 @@
 
 #include <Arduino.h>
 #include "control_wm8960.h"
-#include "Wire.h"
 
 // See https://blog.titanwolf.in/a?ID=00500-80a77412-7973-49b3-b2e9-bc1beb847257
 
 
 #define WM8960_I2C_ADDR 0x1A
 
+// mask set bits are the bits in val which should be written
+bool AudioControlWM8960::write(uint16_t reg, uint16_t val, uint16_t mask, bool force=false)
+{
+
+    uint16_t newval;
+
+    newval = (regmap[reg] & ~mask) | (val & mask);
+
+    if ((newval != regmap[reg]) || force) {
+        regmap[reg] = newval;
+
+        Wire.beginTransmission(WM8960_I2C_ADDR);
+
+        Wire.write((reg << 1) | ((newval >> 8) & 1));
+        Wire.write(newval & 0xFF);
+
+        if (Wire.endTransmission() == 0) return true;
+        return false;
+    }
+    return true;
+}
+
+
+
+bool AudioControlWM8960::disable(void)
+{
+    // Reset
+    return write(0x0f, 0, 0b01, true);
+}
+
 
 bool AudioControlWM8960::enable(void)
 {
-    Wire.begin();
-    delay(5);
+    //Wire.begin();
+    //delay(5);
 
     // Reset
-    if (!write(0x0f, 0, 0b01)) {
+    if (!write(0x0f, 0, 0b01, true)) {
         return false; // no WM8960 chip responding
     }
 
     delay(5);
 
     // Enable VMID and VREF
-    write(0x19, 0x1c0, 0b111000000);
+    write(0x19, 0b111000000, 0b111000000);
 
     // Enable DAC, Headphones and Speakers
     write(0x1a, 0b111111000, 0b111111000);
 
     // Enable mixer
-    write(0x2f, 0x0c,0x0c);
+    write(0x2f, 0b000001100, 0b000001100);
 
     // Setup clocking
-    write(0x04, 0x00, 0b111111111);
+    write(0x04, 0b000000000, 0b111111111);
 
 
-    // Unmute
-    muteDAC(0);
+    // Unmute DAC
+    write(0x05, 0b000000000, 0b000001000);
 
     // 16-bit data and i2s interface
-    write(0x07, 0x02, 0b000001111); // I2S, 16 bit, MCLK slave
+    write(0x07, 0b000000010, 0b000001111); // I2S, 16 bit, MCLK slave
 
     // Mute headphone and speakers, but enable zero crossing changes only
     write(0x02, 0b010000000, 0b011111111);
@@ -68,242 +97,214 @@ bool AudioControlWM8960::enable(void)
     write(0x28, 0b010000000, 0b011111111);
     write(0x29, 0b110000000, 0b111111111);
 
-    leftDACVolume(0xff);
-
-    rightDACVolume(0xff);
+    // Set DAC Volume to max 0dB, full range of DAC
+    write(0x0a, 0b011111111, 0b011111111);
+    write(0x0b, 0b111111111, 0b111111111);
 
     // Connect Left DAC to left output mixer
-    write(0x22,0x100,0x100);
+    write(0x22, 0b100000000, 0b100000000);
 
     // Connect Right DAC to right output mixer
-    write(0x25,0x100,0x100);
+    write(0x25, 0b100000000, 0b100000000);
 
 
     // Enable headphone detect to disable speaker
     // Enable HPSWEN and set HPSWPOL
-    write(0x18,0b001000000,0b001100000);
+    write(0x18, 0b001000000, 0b001100000);
     // Use JD02 as jack detect input
-    write(0x30,0b000001000,0b000001100);
+    write(0x30, 0b000001000, 0b000001100);
     // Enable slow clock for jack detect
-    write(0x17,0b000000001,0b000000011);
+    write(0x17, 0b000000001, 0b000000011);
 
 
     // Enable speaker outputs
-    write(0x31,0b011000000,0b011000000);
+    write(0x31, 0b011000000, 0b011000000);
 
 
     //// Configure input
-    //// Enable AINL and AINR, and ADCL ADCR, and MIC bias
-    //write(0x19,0b000111110,0b000111110);
-    //// Enable LMIC RMIC
-    //write(0x2f,0b000110000,0b000110000);
-    //// Enable only first inputs, connect to input mixer, enable boost of +29dB
-    //write(0x20,0b100111000,0b100111000);
-    //write(0x21,0b100111000,0b100111000);
-    //// Unmute and set zero crossing input level change
-    //write(0x00,0b101000000,0b111000000);
-    //write(0x01,0b101000000,0b111000000);
-    //// Enable ALC for both channels
-    //write(0x11,0b110000000,0b110000000);
+    //// Enable AINL/AINR, and ADCL/ADCR
+    write(0x19, 0b000111100, 0b000111100);
+
+    // Unmute and set zero crossing input level change
+    write(0x00, 0b101000000, 0b111000000);
+    write(0x01, 0b101000000, 0b111000000);
 
     delay(100); // how long to power up?
-
 
     return true;
 }
 
 bool AudioControlWM8960::volume(float n) {
-    unsigned int i;
-    i = 47 + (int) (80.0*n+0.5);
-    // Do this at low level so that both left and right are updated at the same time
-    // Headphones
-    write(0x02, (i & 0b01111111), 0b001111111);
-    write(0x03, 0b100000000 | (i & 0b01111111), 0b101111111);
-    // Speakers
-    write(0x28, (i & 0b01111111), 0b001111111);
-    // Simplified to return status of only last write
-    return write(0x29, 0b100000000 | (i & 0b01111111), 0b101111111);
+    headphoneVolume(n,n);
+    return speakerVolume(n,n);
+}
+
+bool AudioControlWM8960::volume(float l, float r) {
+    headphoneVolume(l,r);
+    return speakerVolume(l,r);
+}
+
+bool AudioControlWM8960::headphoneVolume(float l, float r)
+{
+    uint16_t i;
+    i = 47 + (uint16_t) (80.0*l+0.5);
+    // Left headphone
+    write(0x02, (i & 0b01111111), 0b001111111, true);
+
+    i = 47 + (uint16_t) (80.0*r+0.5);
+    // Right headphone
+    return write(0x03, 0b100000000 | (i & 0b01111111), 0b101111111, true);
+}
+
+bool AudioControlWM8960::headphonePower(uint8_t p)
+{
+    uint16_t mask;
+    uint16_t value;
+
+    value = (p & 0b11) << 5;
+    mask = 0b011 << 5;
+
+    // LOUT1 Enable
+    return write(0x1a, value, mask);
+}
+
+bool AudioControlWM8960::speakerVolume(float l, float r)
+{
+    uint16_t i;
+    i = 47 + (uint16_t) (80.0*l+0.5);
+    // Left speaker
+    write(0x28, (i & 0b01111111), 0b001111111, true);
+
+    i = 47 + (uint16_t) (80.0*r+0.5);
+    // Right speaker
+    return write(0x29, 0b100000000 | (i & 0b01111111), 0b101111111, true);
+}
+
+bool AudioControlWM8960::speakerPower(uint8_t p)
+{
+    uint16_t mask;
+    uint16_t value;
+
+    value = (p & 0b11) << 3;
+    mask = 0b011 << 3;
+
+    // SPK_PN Output Enable
+    write(0x1a, value, mask);
+
+    // SPK_OP_EN
+    // Bits are swapped
+    value = (p & 0b01) ? 0b010000000 : 0b0;
+    value = (p & 0b10) ? (value | 0b001000000) : value;
+    mask = 0b011 << 6;
+    return write(0x31, value, mask);
 }
 
 
-// mask set bits are the bits in val which should be written
-bool AudioControlWM8960::write(uint16_t reg, uint16_t val, uint16_t mask)
+// Write 1 to disable, 0 to enable, default is enabled
+bool AudioControlWM8960::disableADCHPF(uint8_t v)
 {
-
-    uint16_t newval;
-
-    newval = (regmap[reg] & ~mask) | (val & mask);
-    regmap[reg] = newval;
-
-    Wire.beginTransmission(WM8960_I2C_ADDR);
-
-    Wire.write((reg << 1) | ((newval >> 8) & 1));
-    Wire.write(newval & 0xFF);
-
-    if (Wire.endTransmission() == 0) return true;
-    return false;
-
+    return write(0x05, v, 0b01);
 }
 
 
-// 6 bits, 111111 is +30dB down to 000000 -17.25dB, 0.75dB steps
-bool AudioControlWM8960::leftInputVolume(unsigned int v)
+// Write 1 to enable
+bool AudioControlWM8960::enableMicBias(uint8_t v)
 {
-    return write(0x00, 0b100000000 | (v & 0b0111111), 0b100111111);
-}
-
-bool AudioControlWM8960::rightInputVolume(unsigned int v)
-{
-    return write(0x01, 0b100000000 | (v & 0b0111111), 0b100111111);
-}
-
-// Write 1 to mute
-bool AudioControlWM8960::leftInputMute(unsigned int v)
-{
-    return write(0x00, (v & 0b01) << 7, 0b110000000);
-}
-
-bool AudioControlWM8960::rightInputMute(unsigned int v)
-{
-    return write(0x01, (v & 0b01) << 7, 0b110000000);
-}
-
-// Write 1 to enable change on zero crossing only
-bool AudioControlWM8960::leftInputZC(unsigned int v)
-{
-    return write(0x00, (v & 0b01) << 6, 0b101000000);
-}
-
-bool AudioControlWM8960::rightInputZC(unsigned int v)
-{
-    return write(0x01, (v & 0b01) << 6, 0b101000000);
-}
-
-// 7 bits, 1111111 is +6dB down to 0000000 -73dB, 1dB steps
-bool AudioControlWM8960::leftHeadphoneVolume(unsigned int v)
-{
-    return write(0x02, 0b100000000 | (v & 0b01111111), 0b101111111);
-}
-
-bool AudioControlWM8960::rightHeadphoneVolume(unsigned int v)
-{
-    return write(0x03, 0b100000000 | (v & 0b01111111), 0b101111111);
-}
-
-// Write 1 to enable change on zero crossing only
-bool AudioControlWM8960::leftHeadphoneZC(unsigned int v)
-{
-    return write(0x02, (v & 0b01) << 7, 0b110000000);
-}
-
-bool AudioControlWM8960::rightHeadphoneZC(unsigned int v)
-{
-    return write(0x03, (v & 0b01) << 7, 0b110000000);
+    return write(0x19,v << 1,0b000000010);
 }
 
 // Write 1 to enable
-bool AudioControlWM8960::enableDAC6dBAttenuate(unsigned int v)
+bool AudioControlWM8960::enableALC(uint16_t v)
 {
-    return write(0x05, (v & 0b01) << 7, 0b010000000);
+    // FIXME set LINVOL and RINVOL to same value if both are enabled
+    return write(0x11, v << 7, 0b110000000);
 }
 
-// Write 1 to mute
-bool AudioControlWM8960::muteDAC(unsigned int v)
-{
-    return write(0x05, (v & 0b01) << 3, 0b000001000);
-}
 
-// Write 1 to enable
-bool AudioControlWM8960::enableDeemphasis(unsigned int v)
+bool AudioControlWM8960::micPower(uint8_t p)
 {
-    if (v) {
-        return write(0x05, 0b011, 0b011);
+    uint16_t mask;
+    uint16_t value;
+
+
+    // Select microphone inputs with +29dB boost
+    if (p & 0b010) {
+        // enable left
+        write(0x20,0b100111000,0b111111000);
     } else {
-        return write(0x05, 0b000, 0b011);
+        // disable left
+        write(0x20,0b000000000,0b111111000);
     }
+
+    if (p & 0b001) {
+        // enable right (MEMS)
+        write(0x21,0b100111000,0b111111000);
+    } else {
+        // disable left
+        write(0x21,0b000000000,0b111111000);
+    }
+
+    // enable microphone inputs
+    value = p  << 4;
+    mask = 0b011 << 4;
+
+    return write(0x2f, value, mask);
 }
 
-// Write 1 to enable
-bool AudioControlWM8960::enableADCHPF(unsigned int v)
+bool AudioControlWM8960::lineinPower(uint8_t p)
 {
-    return write(0x05, v & 0b01, 0b01);
+    uint16_t mask;
+    uint16_t value;
+
+
+    // Select line2
+    if (p & 0b010) {
+        // enable left
+        write(0x20,0b001000000,0b111111000);
+    } else {
+        // disable left
+        write(0x20,0b000000000,0b111111000);
+    }
+
+    if (p & 0b001) {
+        // enable right (MEMS)
+        write(0x21,0b001000000,0b111111000);
+    } else {
+        // disable left
+        write(0x21,0b000000000,0b111111000);
+    }
+
+    // disable microphone inputs
+    value = p << 4;
+    mask = 0b011 << 4;
+    return write(0x2f, value, mask);
 }
 
 
-// 8 bits, 11111111 is 0dB down to 00000001 -127dB, 0.5dB steps, 00000000 is mute
-bool AudioControlWM8960::leftDACVolume(unsigned int v)
+
+bool AudioControlWM8960::inputLevel(float n)
 {
-    return write(0x0a, 0b100000000 | (v & 0b011111111), 0b111111111);
+    return inputLevel(n,n);
+
 }
 
-bool AudioControlWM8960::rightDACVolume(unsigned int v)
+bool AudioControlWM8960::inputLevel(float l, float r)
 {
-    return write(0x0b, 0b100000000 | (v & 0b011111111), 0b111111111);
+    uint16_t i;
+    i = (uint16_t) (63.0*l+0.5);
+    // Left input
+    write(0x0, i, 0b000111111, true);
+
+    i = (uint16_t) (63.0*r+0.5);
+    // Right input (MEMS)
+    return write(0x1, 0b100000000 | i, 0b100111111, true);
 }
 
-
-// 8 bits, 11111111 is +30dB down to 00000001 -97dB, 0.5dB steps, 00000000 is mute
-bool AudioControlWM8960::leftADCVolume(unsigned int v)
+bool AudioControlWM8960::inputSelect(int n)
 {
-    return write(0x15, 0b100000000 | (v & 0b011111111), 0b111111111);
-}
-
-bool AudioControlWM8960::rightADCVolume(unsigned int v)
-{
-    return write(0x16, 0b100000000 | (v & 0b011111111), 0b111111111);
-}
-
-bool AudioControlWM8960::leftInputPower(unsigned int v)
-{
-    return write(0x19, (v & 0b01) << 5, 0b01 << 5);
-}
-
-bool AudioControlWM8960::rightInputPower(unsigned int v)
-{
-    return write(0x19, (v & 0b01) << 4, 0b01 << 4);
-}
-
-bool AudioControlWM8960::leftADCPower(unsigned int v)
-{
-    return write(0x19, (v & 0b01) << 3, 0b01 << 3);
-}
-
-bool AudioControlWM8960::rightADCPower(unsigned int v)
-{
-    return write(0x19, (v & 0b01) << 2, 0b01 << 2);
-}
-
-bool AudioControlWM8960::micBiasPower(unsigned int v)
-{
-    return write(0x19, (v & 0b01) << 1, 0b01 << 1);
-}
-
-bool AudioControlWM8960::leftDACPower(unsigned int v)
-{
-    return write(0x1a, (v & 0b01) << 8, 0b01 << 8);
-}
-
-bool AudioControlWM8960::rightDACPower(unsigned int v)
-{
-    return write(0x1a, (v & 0b01) << 7, 0b01 << 7);
-}
-
-bool AudioControlWM8960::leftHeadphonePower(unsigned int v)
-{
-    return write(0x1a, (v & 0b01) << 6, 0b01 << 6);
-}
-
-bool AudioControlWM8960::rightHeadphonePower(unsigned int v)
-{
-    return write(0x1a, (v & 0b01) << 5, 0b01 << 5);
-}
-
-bool AudioControlWM8960::leftSpeakerPower(unsigned int v)
-{
-    return write(0x1a, (v & 0b01) << 4, 0b01 << 4);
-}
-
-bool AudioControlWM8960::rightSpeakerPower(unsigned int v)
-{
-    return write(0x1a, (v & 0b01) << 3, 0b01 << 3);
+    if (n) {
+        return lineinPower(0b011);
+    } else {
+        return micPower(0b011);
+    }
 }

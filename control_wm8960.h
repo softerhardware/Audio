@@ -24,50 +24,58 @@
 #define control_wm8960_h_
 
 #include "AudioControl.h"
+#include "Wire.h"
 
 class AudioControlWM8960 : public AudioControl
 {
 public:
+    AudioControlWM8960(void) { Wire.begin(); delay(5); }
+    // Reset and configure ww8960
     bool enable(void);
-    bool disable(void) { return false; }
-    bool inputLevel(float n) { return false; } // range: 0.0f to 1.0f
-    bool inputSelect(int n) { return false; }
+    // Reset, most settings are in a powered off state when reset
+    bool disable(void);
 
+    // Input level, either stereo or combined
+    bool inputLevel(float n);
+    bool inputLevel(float l, float r);
+
+    // Select input, 0 is microphones, 1 is linein
+    bool inputSelect(int n);
+
+    // Master volume for both headphones and speaker, either stereo or combined
     bool volume(float n);
+    bool volume(float l, float r);
 
+    // Stereo volume for headphones only
+    bool headphoneVolume(float l, float r);
+    // Two bits, set L and R to 1 in 0b0LR to turn on channels
+    bool headphonePower(uint8_t p);
 
-    bool leftInputVolume(unsigned int v);
-    bool rightInputVolume(unsigned int v);
-    bool leftInputMute(unsigned int v);
-    bool rightInputMute(unsigned int v);
-    bool leftInputZC(unsigned int v);
-    bool rightInputZC(unsigned int v);
-    bool leftHeadphoneVolume(unsigned int v);
-    bool rightHeadphoneVolume(unsigned int v);
-    bool leftHeadphoneZC(unsigned int v);
-    bool rightHeadphoneZC(unsigned int v);
-    bool enableDAC6dBAttenuate(unsigned int v);
-    bool muteDAC(unsigned int v);
-    bool enableDeemphasis(unsigned int v);
-    bool enableADCHPF(unsigned int v);
-    bool leftDACVolume(unsigned int v);
-    bool rightDACVolume(unsigned int v);
-    bool leftADCVolume(unsigned int v);
-    bool rightADCVolume(unsigned int v);
-    bool leftInputPower(unsigned int v);
-    bool rightInputPower(unsigned int v);
-    bool leftADCPower(unsigned int v);
-    bool rightADCPower(unsigned int v);
-    bool micBiasPower(unsigned int v);
-    bool leftDACPower(unsigned int v);
-    bool rightDACPower(unsigned int v);
-    bool leftHeadphonePower(unsigned int v);
-    bool rightHeadphonePower(unsigned int v);
-    bool leftSpeakerPower(unsigned int v);
-    bool rightSpeakerPower(unsigned int v);
+    // Stereo volume for headphones only
+    bool speakerVolume(float l, float r);
+    // Two bits, set L and R to 1 in 0b0LR to turn on channels
+    bool speakerPower(uint8_t p);
+
+    // Write 1 to disable, 0 to enable, default is enabled
+    bool disableADCHPF(uint8_t v);
+
+    // Write 1 to enable, 0 to disable, default is disabled
+    bool enableMicBias(uint8_t v);
+
+    // Two bits, set L and R to 1 in 0b0LR to turn on channels
+    bool enableALC(uint16_t v);
+
+    // Two bits, set L and R to 1 in 0b0LR to turn on channels
+    bool micPower(uint8_t p);
+
+    // Two bits, set L and R to 1 in 0b0LR to turn on channels
+    bool lineinPower(uint8_t p);
+
+    // Write directly to wm8960
+    bool write(uint16_t reg, uint16_t val, uint16_t mask, bool force);
 
 protected:
-    bool write(uint16_t reg, uint16_t val, uint16_t mask);
+
     // wm8960 state is write only, this keeps track of state and is initialized with defaults
     uint16_t regmap[56] = {
         0x097, 0x097, 0x000, 0x000, 0x000, 0x008, 0x000, 0x00a, // Registers 0x00-0x07
@@ -78,6 +86,7 @@ protected:
         0x100, 0x100, 0x040, 0x000, 0x000, 0x050, 0x050, 0x000, // Registers 0x28-0x2f
         0x002, 0x037, 0x04d, 0x080, 0x008, 0x031, 0x026, 0x0e9  // Registers 0x30-0x37
     };
+
 };
 
 #endif
