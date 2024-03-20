@@ -22,6 +22,7 @@
 
 #include <Arduino.h>
 #include "control_wm8960.h"
+#include "Wire.h"
 
 // See https://blog.titanwolf.in/a?ID=00500-80a77412-7973-49b3-b2e9-bc1beb847257
 
@@ -61,8 +62,8 @@ bool AudioControlWM8960::disable(void)
 
 bool AudioControlWM8960::enable(void)
 {
-    //Wire.begin();
-    //delay(5);
+    Wire.begin();
+    delay(5);
 
     // Reset
     if (!write(0x0f, 0, 0b01, true)) {
